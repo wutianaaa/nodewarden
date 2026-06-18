@@ -16,6 +16,7 @@ import {
   type BackupRuntimeState,
   type BackupScheduleConfig,
   type BackupSettings,
+  type S3BackupAddressingStyle,
   type S3BackupDestination,
   type WebDavBackupDestination,
   createBackupRandomId,
@@ -35,6 +36,7 @@ export type {
   BackupRuntimeState,
   BackupScheduleConfig,
   BackupSettings,
+  S3BackupAddressingStyle,
   S3BackupDestination,
   WebDavBackupDestination,
 } from '../../shared/backup-schema';
@@ -109,6 +111,9 @@ function normalizeS3Destination(value: unknown, allowIncomplete = false): S3Back
   const source = isPlainObject(value) ? value : {};
   const endpoint = asTrimmedString(source.endpoint);
   const bucket = asTrimmedString(source.bucket);
+  const addressingStyleRaw = asTrimmedString(source.addressingStyle);
+  const addressingStyle: S3BackupAddressingStyle =
+    addressingStyleRaw === 'virtual-hosted-style' ? 'virtual-hosted-style' : 'path-style';
   const accessKeyId = asTrimmedString(source.accessKeyId);
   const secretAccessKey = asTrimmedString(source.secretAccessKey);
   const region = asTrimmedString(source.region) || 'auto';
@@ -131,6 +136,7 @@ function normalizeS3Destination(value: unknown, allowIncomplete = false): S3Back
   return {
     endpoint: endpoint ? endpoint.replace(/\/+$/, '') : '',
     bucket,
+    addressingStyle,
     region,
     accessKeyId,
     secretAccessKey,
@@ -409,13 +415,6 @@ export async function loadBackupSettings(storage: StorageService, env: Env, fall
 
 export async function saveBackupSettings(storage: StorageService, env: Env, settings: BackupSettings): Promise<void> {
   const users = await storage.getAllUsers();
-  const hasPortableAdmins = users.some(
-    (user) => user.role === 'admin' && user.status === 'active' && typeof user.publicKey === 'string' && user.publicKey.trim().length > 0
-  );
-  if (!hasPortableAdmins) {
-    await storage.setConfigValue(BACKUP_SETTINGS_CONFIG_KEY, serializeBackupSettings(settings));
-    return;
-  }
   const encrypted = await encryptBackupSettingsEnvelope(serializeBackupSettings(settings), env, users);
   await storage.setConfigValue(BACKUP_SETTINGS_CONFIG_KEY, encrypted);
 }
@@ -442,12 +441,6 @@ export async function normalizeImportedBackupSettingsValue(
     try {
       const decrypted = await decryptBackupSettingsRuntime(raw, env);
       const settings = parseBackupSettings(decrypted, fallbackTimezone);
-      const hasPortableAdmins = users.some(
-        (user) => user.role === 'admin' && user.status === 'active' && typeof user.publicKey === 'string' && user.publicKey.trim().length > 0
-      );
-      if (!hasPortableAdmins) {
-        return serializeBackupSettings(settings);
-      }
       return encryptBackupSettingsEnvelope(serializeBackupSettings(settings), env, users);
     } catch {
       // Keep imported portable recovery data intact until an admin signs in and repairs it.
@@ -455,12 +448,6 @@ export async function normalizeImportedBackupSettingsValue(
     }
   }
   const settings = parseBackupSettings(raw, fallbackTimezone);
-  const hasPortableAdmins = users.some(
-    (user) => user.role === 'admin' && user.status === 'active' && typeof user.publicKey === 'string' && user.publicKey.trim().length > 0
-  );
-  if (!hasPortableAdmins) {
-    return serializeBackupSettings(settings);
-  }
   return encryptBackupSettingsEnvelope(serializeBackupSettings(settings), env, users);
 }
 

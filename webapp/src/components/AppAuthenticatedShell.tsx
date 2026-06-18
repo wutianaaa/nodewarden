@@ -1,8 +1,9 @@
-import { ArrowUpDown, Check, ChevronDown, Clock3, Cloud, Folder as FolderIcon, Globe2, KeyRound, Lock, LogOut, MonitorSmartphone, Send as SendIcon, Settings as SettingsIcon, ShieldUser, SlidersHorizontal, Users } from 'lucide-preact';
+import { ArrowUpDown, Check, ChevronDown, Clock3, Cloud, FileClock, Folder as FolderIcon, Globe2, KeyRound, Lock, LogOut, MonitorSmartphone, Send as SendIcon, Settings as SettingsIcon, ShieldUser, SlidersHorizontal, Users } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Link } from 'wouter';
 import AppMainRoutes from '@/components/AppMainRoutes';
+import NetworkStatusBadge from '@/components/NetworkStatusBadge';
 import ThemeSwitch from '@/components/ThemeSwitch';
 import type { AppMainRoutesProps } from '@/components/AppMainRoutes';
 import { t } from '@/lib/i18n';
@@ -46,13 +47,19 @@ function isAdminProfile(profile: Profile | null): boolean {
   return String(profile?.role || '').toLowerCase() === 'admin';
 }
 
+const DEVICE_MANAGEMENT_ROUTE = '/settings/security/device-management';
+const LEGACY_DEVICE_MANAGEMENT_ROUTE = '/security/devices';
+
 export default function AppAuthenticatedShell(props: AppAuthenticatedShellProps) {
   const routeAnimationKey = props.isImportRoute ? props.importRoute : props.location;
+  const isDomainRulesRoute = props.location === '/settings/domain-rules';
+  const isLogRoute = props.location === '/logs';
   const isAdmin = isAdminProfile(props.profile);
   const vaultActive = props.location === '/vault' || props.location === '/vault/totp';
   const settingsActive = props.location === props.settingsAccountRoute || props.location === '/settings/domain-rules';
   const dataActive = props.location === '/backup' || props.isImportRoute;
-  const managementActive = props.location === '/admin' || props.location === '/security/devices';
+  const deviceManagementActive = props.location === DEVICE_MANAGEMENT_ROUTE || props.location === LEGACY_DEVICE_MANAGEMENT_ROUTE;
+  const managementActive = props.location === '/admin' || deviceManagementActive || props.location === '/logs';
   const [navLayoutMode, setNavLayoutMode] = useState<NavLayoutMode>(readNavLayoutMode);
   const [navLayoutPickerOpen, setNavLayoutPickerOpen] = useState(false);
   const navLayoutPickerRef = useRef<HTMLDivElement | null>(null);
@@ -173,7 +180,8 @@ export default function AppAuthenticatedShell(props: AppAuthenticatedShellProps)
       {isAdmin && renderSideLink('/backup', props.location === '/backup', <Cloud size={16} />, t('nav_backup_strategy'))}
       {renderSideLink(props.importRoute, props.isImportRoute, <ArrowUpDown size={16} />, t('nav_import_export'))}
       {isAdmin && renderSideLink('/admin', props.location === '/admin', <Users size={16} />, t('nav_admin_panel'))}
-      {renderSideLink('/security/devices', props.location === '/security/devices', <MonitorSmartphone size={16} />, t('nav_device_management'))}
+      {isAdmin && renderSideLink('/logs', props.location === '/logs', <FileClock size={16} />, t('nav_log_center'))}
+      {renderSideLink(DEVICE_MANAGEMENT_ROUTE, deviceManagementActive, <MonitorSmartphone size={16} />, t('nav_device_management'))}
     </>
   );
 
@@ -217,7 +225,8 @@ export default function AppAuthenticatedShell(props: AppAuthenticatedShellProps)
         managementActive,
         <>
           {isAdmin && renderSubLink('/admin', props.location === '/admin', t('nav_admin_panel'))}
-          {renderSubLink('/security/devices', props.location === '/security/devices', t('nav_device_management'))}
+          {isAdmin && renderSubLink('/logs', props.location === '/logs', t('nav_log_center'))}
+          {renderSubLink(DEVICE_MANAGEMENT_ROUTE, deviceManagementActive, t('nav_device_management'))}
         </>
       )}
     </>
@@ -233,6 +242,7 @@ export default function AppAuthenticatedShell(props: AppAuthenticatedShellProps)
             <span className="mobile-page-title">{props.currentPageTitle}</span>
           </div>
           <div className="topbar-actions">
+            <NetworkStatusBadge />
             <div className="user-chip">
               <ShieldUser size={16} />
               <span>{props.profile?.email}</span>
@@ -302,7 +312,7 @@ export default function AppAuthenticatedShell(props: AppAuthenticatedShellProps)
             </div>
           </aside>
           <main className="content">
-            <div key={routeAnimationKey} className={`route-stage ${props.location === '/settings/domain-rules' ? 'route-stage-fixed' : ''}`}>
+            <div key={routeAnimationKey} className={`route-stage ${isDomainRulesRoute ? 'route-stage-fixed' : ''} ${isLogRoute ? 'route-stage-log-fixed' : ''}`}>
               <AppMainRoutes {...props.mainRoutesProps} />
             </div>
           </main>
